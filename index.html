@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hoda Orders Orange</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body{
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg,#ff8c42,#ffb347);
+  margin:0;
+  padding:10px;
+  color:#fff;
+}
+h2{text-align:center;font-weight:bold;}
+.container{
+  max-width:500px;
+  margin:auto;
+}
+.card{
+  background:white;
+  color:#333;
+  padding:15px;
+  border-radius:12px;
+  margin:12px 0;
+  box-shadow:0 5px 12px rgba(0,0,0,0.2);
+}
+.card div{margin:6px 0;font-weight:bold;}
+button{
+  width:100%;
+  padding:12px;
+  margin:6px 0;
+  border:none;
+  border-radius:10px;
+  background:#ff6f1e;
+  color:white;
+  font-size:17px;
+  font-weight:bold;
+  cursor:pointer;
+  box-shadow:0 3px 8px rgba(0,0,0,0.2);
+}
+button:hover{
+  background:#e55a00;
+}
+input{
+  width:100%;
+  padding:10px;
+  margin:4px 0;
+  text-align:center;
+  font-size:16px;
+  border-radius:8px;
+  border:1px solid #ccc;
+  box-sizing:border-box;
+}
+canvas{margin-top:20px;}
+</style>
+</head>
+<body>
+<h2>📊 Hoda Orders Dashboard</h2>
+<div class="container">
+
+<div class="card">
+  <div>📅 اليوم: <span id="date"></span></div>
+  <div>عدد الأوردرات: <span id="orders">0</span></div>
+  <button onclick="addOrder()">+ أوردر</button>
+  <button onclick="resetToday()">تصفير اليوم</button>
+</div>
+
+<div class="card">
+  <label>سعر الأوردر</label>
+  <input type="number" id="price" value="22">
+  <label>الإكرامي</label>
+  <input type="number" id="tips" value="0">
+  <label>المصاريف</label>
+  <input type="number" id="expenses" value="0">
+  <label>هدف اليوم</label>
+  <input type="number" id="goal" value="500">
+  <button onclick="calculate()">احسب</button>
+</div>
+
+<div class="card" id="result"></div>
+<div class="card" id="stats"></div>
+
+<canvas id="chart"></canvas>
+
+<div class="card">
+  <button onclick="exportData()">تصدير نسخة احتياطية</button>
+  <button onclick="downloadPDF()">تقرير PDF</button>
+</div>
+
+</div>
+
+<script>
+let today = new Date().toLocaleDateString("ar-EG");
+document.getElementById("date").innerText = today;
+
+let data = JSON.parse(localStorage.getItem("ordersData")) || {};
+if(!data[today]) data[today]={orders:0,total:0};
+
+document.getElementById("orders").innerText = data[today].orders;
+
+function addOrder(){
+  data[today].orders++;
+  document.getElementById("orders").innerText = data[today].orders;
+  save();
+}
+
+function calculate(){
+  let price = Number(document.getElementById("price").value);
+  let tips = Number(document.getElementById("tips").value);
+  let expenses = Number(document.getElementById("expenses").value);
+  let goal = Number(document.getElementById("goal").value);
+
+  let total = (data[today].orders * price) + tips - expenses;
+  data[today].total = total;
+
+  document.getElementById("result").innerHTML = "صافي اليوم: "+total+" جنيه";
+
+  let days = Object.keys(data).slice(-7);
+  let totals = days.map(d=>data[d].total||0);
+
+  let sum = totals.reduce((a,b)=>a+b,0);
+  let avg = (sum / days.length).toFixed(1);
+  let best = Math.max(...totals);
+  let remain = goal - total;
+
+  document.getElementById("stats").innerHTML =
+    "متوسط آخر 7 أيام: "+avg+" جنيه<br>"+
+    "أعلى يوم: "+best+" جنيه<br>"+
+    "المتبقي للهدف اليومي: "+(remain>0?remain:0)+" جنيه";
+
+  drawChart();
+  save();
+}
+
+function drawChart(){
+  let days = Object.keys(data).slice(-7);
+  let totals = days.map(d=>data[d].total||0);
+
+  if(window.myChart) window.myChart.destroy();
+  let ctx = document.getElementById("chart").getContext('2d');
+  window.myChart = new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:days,
+      datasets:[{
+        label:'الأرباح اليومية (آخر 7 أيام)',
+        data:totals,
+        borderColor:'#ff6f1e',
+        backgroundColor:'rgba(255,111,30,0.3)',
+        fill:true,
+        tension:0.3
+      }]
+    },
+    options:{responsive:true,scales:{y:{beginAtZero:true}}}
+  });
+}
+
+function resetToday(){
+  data[today]={orders:0,total:0};
+  document.getElementById("orders").innerText=0;
+  document.getElementById("result").innerHTML="";
+  document.getElementById("stats").innerHTML="";
+  drawChart();
+  save();
+}
+
+function save(){localStorage.setItem("ordersData",JSON.stringify(data));}
+function exportData(){
+  let blob=new Blob([JSON.stringify(data)],{type:"application/json"});
+  let a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="backup_orders.json";
+  a.click();
+}
+function downloadPDF(){
+  let content="تقرير أرباح\n\n"+document.getElementById("result").innerText+"\n"+document.getElementById("stats").innerText;
+  let blob=new Blob([content],{type:"text/plain"});
+  let a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="report.txt";
+  a.click();
+}
+drawChart();
+</script>
+</body>
+</html>
